@@ -124,6 +124,45 @@ module PrecomputeStringLookup
 end
 
 
+module PrecomputeStringAndSymbolLookup
+  module Rumoji
+    extend self
+
+    def decode(str)
+      str.gsub(/:([^\s:]?[\w-]+):/) {|sym| (Emoji.find($1) || sym).to_s }
+    end
+  end
+
+  class Emoji < ::Rumoji::Emoji
+    def symbol
+      symbols.first
+    end
+
+    def symbols
+      @cheat_codes
+    end
+
+    def include?(symbol)
+      symbols.map(&:to_s).include? symbol.to_s
+    end
+
+    ALL = ::Rumoji::Emoji::ALL.map do |emoji|
+      Emoji.new(emoji.string, emoji.instance_variable_get(:@cheat_codes), emoji.name)
+    end
+
+    CODE_LOOKUP = ALL.each.with_object({}) do |emoji, lookup|
+      emoji.symbols.each do |symbol|
+        lookup[symbol.to_s] = lookup[symbol] = emoji
+      end
+    end
+
+    def self.find(symbol)
+      CODE_LOOKUP[symbol]
+    end
+  end
+end
+
+
 module CheatCodeRegexp
   module Rumoji
     extend self
@@ -206,6 +245,9 @@ Benchmark.ips do |x|
   end
   x.report("precompute string lookup: ") do
     PrecomputeStringLookup::Rumoji.decode(base_string)
+  end
+  x.report("precompute string and symbol lookup: ") do
+    PrecomputeStringAndSymbolLookup::Rumoji.decode(base_string)
   end
   x.report("cheat code regexp: ") do
     CheatCodeRegexp::Rumoji.decode(base_string)
